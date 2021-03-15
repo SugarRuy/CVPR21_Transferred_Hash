@@ -91,5 +91,6 @@ python myExpGetAdvVulnerable.py --gpu_id 0 --dis_method cW --adv_method miFGSMDI
 
 
 ## Contacts and Issues
-    Yanru Xiao: [yxiao002@odu.edu](mailto:yxiao002@odu.edu)
-    For any further issues, please oepn a new issue on github. 
+Yanru Xiao: [yxiao002@odu.edu](mailto:yxiao002@odu.edu).
+
+For any further issues, please oepn a new issue on github. 
