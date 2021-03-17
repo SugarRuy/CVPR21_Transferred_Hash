@@ -1,6 +1,6 @@
-# CVPR21_Transferred_Hash
+# CVPR21_Transferred_Hash (STILL UNDER CONSTRUCTION!!!)
 A PyTorch Implementation of "You See What I Want You to See: Exploring Targeted Black-Box Transferability
-Attack for Hash-based Image Retrieval Systems" accepted by CVPR 2021
+Attack for Hash-based Image Retrieval Systems" accepted by CVPR 2021.
 
 ## Prepare Enviroments
 
