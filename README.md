@@ -6,7 +6,7 @@ Attack for Hash-based Image Retrieval Systems" accepted by CVPR 2021
 
 Only supports CUDA.
 
-Basically you will at least need Python 3 and PyTorch 1.0+ to run this program.(I was a big fun of Python2 but...)
+Basically you will at least need Python 3 and PyTorch 1.0+ to run this program.
 
 Suggest to install with conda. The yml file for virtual env will be available soon.
 
@@ -91,6 +91,5 @@ python myExpGetAdvVulnerable.py --gpu_id 0 --dis_method cW --adv_method miFGSMDI
 
 
 ## Contacts and Issues
-Yanru Xiao: [yxiao002@odu.edu](mailto:yxiao002@odu.edu).
-
+Yanru Xiao: [yxiao002@odu.edu](mailto:yxiao002@odu.edu)
 For any further issues, please oepn a new issue on github. 
