@@ -4,11 +4,11 @@ Attack for Hash-based Image Retrieval Systems" accepted by CVPR 2021.
 
 ## Prepare Enviroments
 
-Only supports CUDA.
+Needs a 
 
-Basically you will at least need Python 3 and PyTorch 1.0+ to run this program.
+Basically you will need Python 3 at least and PyTorch 1.0+ to run this program. 
 
-Suggest to install with conda. The yml file for virtual env will be available soon.
+Suggest to install with conda. 
 
 ## Dataset
 ### ImageNet
@@ -19,10 +19,9 @@ Remember to modify the path in files in [./HashNet/pytorch/data/imagenet/](./Has
 
 ## Running
 ### Preparing Models and Hash Code files.
-Model files and hash code files for corresponding dataset should be ready to make it run smoothly.  The model file should be saved into ./HashNet/pytorch/snapshot/imagenet/_48bit_/[net]_hashnet/. The hash code files should be saved into ./HashNet/pytorch/src/save_for_load/blackbox/[net]/imagenet/. 
+We provide link for downloading all models and hash code files we have used. Here is the [link](https://drive.google.com/drive/folders/1XkOQNq_mpkGgMuncwk0RdV-PbrvvhVH0?usp=sharing). (**This method is RECOMMENDED.**)
 
-
-We provide link for downloading all models and hash code files we have used. Here is the [link](). (**This method is RECOMMENDED. Links will be available soon.**)
+The 'snapshot' folder should be placed under *CVPR21_TransferredHash/AD_attack/HashNet/pytorch/* and the 'save_for_load' folder should be placed under *CVPR21_TransferredHash/AD_attack/HashNet/pytorch/src/*.
 
 
 You could also do DIY training by:
