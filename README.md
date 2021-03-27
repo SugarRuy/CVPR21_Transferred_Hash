@@ -1,14 +1,13 @@
-# CVPR21_Transferred_Hash (STILL UNDER CONSTRUCTION!!!)
+# CVPR21_Transferred_Hash
 A PyTorch Implementation of "You See What I Want You to See: Exploring Targeted Black-Box Transferability
 Attack for Hash-based Image Retrieval Systems" accepted by CVPR 2021.
 
 ## Prepare Enviroments
 
-Needs a 
+You will need a CUDA device to run our code.
 
-Basically you will need Python 3 at least and PyTorch 1.0+ to run this program. 
+Basically you will need Python 3 at least and PyTorch 1.0+ to run this program. We suggest to install them with conda. 
 
-Suggest to install with conda. 
 
 ## Dataset
 ### ImageNet
