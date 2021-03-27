@@ -9,6 +9,7 @@ from myGetAdvVulnerable import get_target_targetedRetrievalNum, get_adv_black_re
 
 def success_rate_once(target_targetedNum_mat, adv_black_retrieval_result, adv_code_diff_to_targeted='', useCodeDiff=False):
     #if adv_code_diff_to_targeted is '':
+    # if use the filter of 'code difference between adv and target' <= 5
     if useCodeDiff:
         index_valid_code_diff = adv_code_diff_to_targeted <= 5
 
@@ -69,7 +70,7 @@ def func_get_success_rate_matrix():
                     adv_code_diff_to_targeted = get_adv_code_diff_to_targeted(net1, adv_method, step, linf, i_max, j_max, dis_method,  allowLoad=allowLoadD)
 
                     print('net1:%s, net2:%s, adv_method:%s, dis_method:%s'%(net1, net2, adv_method, dis_method))
-                    success_rate_gt10, success_rate_gt10_valid = success_rate_once(target_targetedNum_mat, adv_black_retrieval_result, adv_code_diff_to_targeted, useCodeDiff = useCodeDiff)
+                    success_rate_gt10, success_rate_gt10_valid = success_rate_once(target_targetedNum_mat, adv_black_retrieval_result, adv_code_diff_to_targeted, useCodeDiff=useCodeDiff)
 
                     success_rate_matrix[i0,i1,i2,i3] = success_rate_gt10
                     success_rate_matrix_valid[i0,i1,i2,i3] = success_rate_gt10_valid
@@ -83,7 +84,7 @@ def print_success_rate_matrix(success_rate_matrix_valid):
             print(i,j)
             print(np.around(success_rate_matrix_valid[i][j]*100, decimals=1))
 
-
+'''
 def big_matrix(success_rate_matrix_valid_rounded, dis_method = 'cW'):
     #big_matrix = np.zeros([25, 10]) - 1.0
     useMat = True
@@ -103,7 +104,7 @@ def big_matrix(success_rate_matrix_valid_rounded, dis_method = 'cW'):
             for i1 in range(success_rate_matrix_valid_rounded.shape[1]):
                 big_dict[i0][i1] = success_rate_matrix_valid_rounded[i0, i1]
         return big_dict
-
+'''
 
 def exp_train_loss_analyze(job_dataset):
     # An exp to see the tread of loss in training process
@@ -146,13 +147,14 @@ if __name__ == "__main__":
     parser.add_argument('--gpu_id', type=str, default='0', help="device id to run")
     parser.add_argument('--dis_method', type=str, default='cW', help="distance method")
     parser.add_argument('--adv_method', type=str, default='miFGSMDI', help="adv method")
-    parser.add_argument('--net1', type=str, default='ResNext101_32x4d', help="net1") # ResNext101_32x4d
-    parser.add_argument('--net2', type=str, default='ResNext101_32x4d', help="net2")
+    parser.add_argument('--net1', type=str, default='ResNet152', help="net1") # ResNext101_32x4d
+    parser.add_argument('--net2', type=str, default='ResNet152', help="net2")
     parser.add_argument('--allowLoad', type=str, default='True', help="is Loading allowed")
-    parser.add_argument('--linf', type=int, default=8, help="linf")
+    parser.add_argument('--linf', type=int, default=32, help="linf")
     parser.add_argument('--allowLoadT', type=str, default='True', help="is Loading allowed Targeted Retrieval Result")
     parser.add_argument('--allowLoadR', type=str, default='True', help="is Loading allowed Retrieval Result")
     parser.add_argument('--allowLoadD', type=str, default='True', help="is Loading allowed Code Difference")
+    parser.add_argument('--notUseCodeDiff', action='store_false') # default: True
     args = parser.parse_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
 
@@ -161,25 +163,27 @@ if __name__ == "__main__":
     net1 = args.net1
     net2 = args.net2
     i_max, j_max = 64, 32
-    step = 8.0
+    step = 1.0
     linf = args.linf
     job_dataset = 'imagenet'
     noiid = False
 
-    allowLoad = False if args.allowLoad is not 'True' else True
-    allowLoadT = False if args.allowLoadT is not 'True' else True
-    allowLoadR = False if args.allowLoadR is not 'True' else True
-    allowLoadD = False if args.allowLoadD is not 'True' else True
+    allowLoad = False if args.allowLoad != 'True' else True
+    allowLoadT = False if args.allowLoadT != 'True' else True
+    allowLoadR = False if args.allowLoadR != 'True' else True
+    allowLoadD = False if args.allowLoadD != 'True' else True
 
     # whether the code diff to be considered in the index
-    useCodeDiff = True
-    '''
-    target_targetedNum_mat = get_target_targetedRetrievalNum(net1, net2, adv_method, step, linf, i_max, j_max, dis_method, job_dataset=job_dataset)
-    adv_black_retrieval_result = get_adv_black_retrieval_result(net1, net2, adv_method, step, linf, i_max, j_max,
-                                                            dis_method, job_dataset=job_dataset, threshold=5, batch_size=8)
-    # success_rate_gt10, success_rate_gt10_valid = success_rate_once(target_targetedNum_mat, adv_black_retrieval_result)
+    useCodeDiff = args.notUseCodeDiff
+
+    target_targetedNum_mat = get_target_targetedRetrievalNum(net1, net2, adv_method, step, linf, i_max, j_max, dis_method, job_dataset=job_dataset, allowLoad=allowLoadT)
+    adv_black_retrieval_result = get_adv_black_retrieval_result(net1, net2, adv_method, step, linf, i_max, j_max, dis_method, job_dataset=job_dataset, threshold=5, batch_size=8, allowLoad=allowLoadR)
+    adv_code_diff_to_targeted = get_adv_code_diff_to_targeted(net1, adv_method, step, linf, i_max, j_max, dis_method, allowLoad=allowLoadD)
+    success_rate_gt10, success_rate_gt10_valid = success_rate_once(target_targetedNum_mat, adv_black_retrieval_result, adv_code_diff_to_targeted,  useCodeDiff=useCodeDiff)
+    #success_rate_gt10, success_rate_gt10_valid = success_rate_once(target_targetedNum_mat, adv_black_retrieval_result)
     '''
     success_rate_matrix, success_rate_matrix_valid = func_get_success_rate_matrix()
     print_success_rate_matrix(success_rate_matrix_valid)
     success_rate_matrix_valid_rounded = np.around(success_rate_matrix_valid, decimals=1)
     #big_dict = big_matrix(success_rate_matrix_valid_rounded)
+    '''

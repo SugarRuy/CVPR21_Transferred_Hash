@@ -192,7 +192,7 @@ def get_hashcode_from_img(img, model, batch_size=16):
             hashcode = model(img_batch).cpu().numpy()
             hashcode_list.append(hashcode)
             hashcode = np.vstack(hashcode_list)
-    return hashcode
+    return np.sign(hashcode)
 
 class HashHammingRetrievalSystem():
     # Wrap a hashnet model as a retrieval system model
@@ -246,6 +246,9 @@ class RetrievalEvaluation():
 
         query_precisions = np.nan_to_num(query_precisions)
         return query_precisions
+
+    def cal_raw_success_rate(self, query_result, target_label):
+        raise NotImplementedError
 
 
 

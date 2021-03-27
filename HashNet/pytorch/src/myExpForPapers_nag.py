@@ -455,23 +455,69 @@ class EXPSettings():
         self.path_white_test_dis_npy = '%s/test_dis_%s.npy' % (path_to_save, net1)
         self.path_black_test_dis_npy = '%s/test_dis_%s.npy' % (path_to_save, net2)
 
+    def get_test_dis_white(self, code_test, code, multi_label):
+        if os.path.exists(self.path_white_test_dis_npy):
+            test_dis_white = np.load(self.path_white_test_dis_npy)
+        else:
+            test_dis_white = np.ones([500, 100]) * 49
+            for i in range(500):
+                for j in range(100):
+                    if int(multi_label_test[i]) != j:
+                        a = np.linalg.norm(code_test[i:i + 1] - code[multi_label == j], ord=0, axis=-1)
+                        test_dis_white[i, j] = a.mean()
+            np.save(self.path_white_test_dis_npy, test_dis_white)
+        return test_dis_white
+
+    def choose_index_by_dis_method_white(self, test_dis_white):
+        hashbit = self.hash_bit
+        max_dis = self.max_dis
+        min_dis = self.min_dis
+        no_same_cate_index = (test_dis_white < hashbit).astype(int)
+        if self.dis_method == 'cW':
+            test_true_index = (test_dis_white < max_dis).astype(int) * (test_dis_white > min_dis).astype(int)
+        if self.dis_method == 'fW':
+            test_true_index = (test_dis_white > max_dis).astype(int)
+        test_true_index = test_true_index * no_same_cate_index
+        test_true_id_list = np.where(test_true_index == 1)
+        test_true_id_x = test_true_id_list[0]
+        test_true_label_y = test_true_id_list[1]
+        return test_true_id_x, test_true_label_y
+
+    def cal_index_set_matrix_white(self, code_test, code, multi_label):
+        i_max = self.i_max
+        j_max = self.j_max
+        path_white_test_dis_npy = self.path_white_test_dis_npy
+        test_dis_white = self.get_test_dis_white(code_test, code, multi_label)
+        test_true_id_x, test_true_label_y = self.choose_index_by_dis_method_white(test_dis_white)
+        id_size = test_true_id_x.shape[0]
+        i_index_set = np.arange(0, id_size, id_size / (i_max), dtype=np.int)[:i_max]
+        j_index_matrix = get_unique_index(code, multi_label, j_max)
+        self.test_true_id_x = test_true_id_x
+        self.test_true_label_y = test_true_label_y
+        self.i_index_set = i_index_set.astype(int)
+        self.j_index_matrix = j_index_matrix
+        return self.i_index_set, self.j_index_matrix
+
     def cal_index_set_matrix(self, multi_label_test, code_test2, code2, multi_label2, code_test, code, multi_label):
         # Select the vulnerable index.
+        # Deprecated
         i_max = self.i_max
         j_max = self.j_max
         path_white_test_dis_npy = self.path_white_test_dis_npy
         path_black_test_dis_npy = self.path_black_test_dis_npy
+
         test_dis_white, test_dis_black = get_test_dis(path_white_test_dis_npy, path_black_test_dis_npy,
                                                       multi_label_test,
                                                       code_test2, code2, multi_label2, code_test, code, multi_label)
         test_true_id_x, test_true_label_y = choose_index_by_dis_method(self.dis_method, test_dis_white, test_dis_black,
                                                                        max_dis=self.max_dis, min_dis=self.min_dis)
         id_size = test_true_id_x.shape[0]
-        i_index_set = np.arange(0, id_size, id_size / (i_max))[:i_max]
+        #i_index_set = np.arange(0, id_size, id_size / (i_max))[:i_max]
+        i_index_set = np.arange(0, id_size, id_size / (i_max), dtype=np.int)[:i_max]
         j_index_matrix = get_unique_index(code, multi_label, j_max)
         self.test_true_id_x = test_true_id_x
         self.test_true_label_y = test_true_label_y
-        self.i_index_set = i_index_set
+        self.i_index_set = i_index_set.astype(int)
         self.j_index_matrix = j_index_matrix
         return self.i_index_set, self.j_index_matrix
 
@@ -492,6 +538,8 @@ class EXPSettings():
 
     def get_inputs_ori_tensor(self):
         return self.inputs_ori_tensor
+
+
 
 class RetrievalExp:
     # Do retrieval exp
@@ -592,7 +640,8 @@ if __name__ == "__main__":
     _, code_test2, _ = network_settings2.get_out_code_label(part='test')
 
     exp_settings = EXPSettings(net1, net2, dis_method, i_max, j_max, step=step, linf=linf)
-    i_index_set, j_index_matrix = exp_settings.cal_index_set_matrix(multi_label_test, code_test2, code2, multi_label2, code_test, code, multi_label)
+    #i_index_set, j_index_matrix = exp_settings.cal_index_set_matrix(multi_label_test, code_test2, code2, multi_label2, code_test, code, multi_label)
+    i_index_set, j_index_matrix =  exp_settings.cal_index_set_matrix_white(code_test, code, multi_label)
     inputs_ori_tensor = exp_settings.cal_inputs_ori_tensor(dset_test=dset_loaders['test'].dataset)
 
 

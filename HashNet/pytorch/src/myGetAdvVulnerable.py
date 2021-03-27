@@ -4,10 +4,11 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 
-from myRetrieval import get_img_num_by_class_from_img_batch, get_targeted_from_all_class
-# use it to get the adv_imgs retrieval result
-from publicFunctions import load_net_inputs, load_net_params, load_dset_params
 
+from myRetrieval import get_img_num_by_class_from_img_batch, get_targeted_from_all_class, get_query_code_batch
+# use it to get the adv_imgs retrieval result
+
+from publicVariables import iters_list
 
 def get_unique_index(code, multi_label, j_max):
     '''
@@ -90,6 +91,7 @@ def choose_index_by_dis_method(dis_method, test_dis_white, test_dis_black, max_d
         test_true_label_y: the corresponding class label of targeted database images in database.
     '''
     hashbit = 48
+    # test_dis was set to 49 when they are in the same category.
     no_same_cate_index = (test_dis_white < hashbit).astype(int) * (test_dis_black < hashbit).astype(int)
     if dis_method == 'cW':
         test_true_index = (test_dis_white < max_dis).astype(int) * (test_dis_white > min_dis).astype(int)
@@ -225,15 +227,19 @@ def estimate_subspace_size(adv_img, ori_img, model, target_label, database_code,
 def get_target_targetedRetrievalNum(net1, net2, adv_method, step, linf, i_max, j_max, dis_method, job_dataset='', allowLoad=True):
     # returns the targeted retrieval number of original targets imgs.
     # The result has no relation with the adv method
-    target_targeted_retrieval_num_path = './save_for_load/%s/target_targetedRetrievalNum_%s.npy' % (
-        net1, dis_method)
+    target_targeted_retrieval_num_folder_path = './save_for_load/%s/'%(net1)
+    target_targeted_retrieval_num_path = target_targeted_retrieval_num_folder_path+'/target_targetedRetrievalNum_%s.npy' % (
+        dis_method)
+    if not os.path.exists(target_targeted_retrieval_num_folder_path):
+        os.makedirs(target_targeted_retrieval_num_folder_path)
     if os.path.exists(target_targeted_retrieval_num_path) and allowLoad:
         target_targetedNum_mat = np.load(target_targeted_retrieval_num_path)
-        print('target_targeted_retrieval_num_path already exists in:', target_targeted_retrieval_num_path)
+        print('load target_targeted_retrieval_num_path in:', target_targeted_retrieval_num_path)
         return target_targetedNum_mat
     else:
         #npy_name = '/%s_imgs_step%1.1f_linf%d_%dx%d_%s.npy' % (adv_method, step, linf, i_max, j_max, dis_method)
         #npy_path = 'save_for_load/' + net1 + npy_name
+        '''
         path_white_test_dis_npy = 'save_for_load/distanceADVRetrieval/test_dis_%s.npy'%(net1)
         path_black_test_dis_npy = 'save_for_load/distanceADVRetrieval/test_dis_%s.npy'%(net2)
         dset_test, dset_database = load_dset_params(job_dataset)
@@ -252,8 +258,28 @@ def get_target_targetedRetrievalNum(net1, net2, adv_method, step, linf, i_max, j
 
         #inputs_ori_tensor = torch.stack([dset_test[test_true_id_x[i_index_set[i]]][0] for i in range(i_max)])
         j_index_matrix = get_unique_index(code, multi_label, j_max)
+        '''
+        hash_bit = 48
+        from publicFunctions import NetworkSettings
+        from myExpForPapers_nag import EXPSettings
+        network_settings1 = NetworkSettings(job_dataset, hash_bit, net1, snapshot_iter=iters_list[net1], batch_size=16)
+        network_settings2 = NetworkSettings(job_dataset, hash_bit, net2, snapshot_iter=iters_list[net2], batch_size=16)
+        exp_settings = EXPSettings(net1, net2, dis_method, i_max, j_max, step=step, linf=linf)
+
+        model1 = network_settings1.get_model()
+        _, code, multi_label = network_settings1.get_out_code_label(part='database')
+        _, code_test, multi_label_test = network_settings1.get_out_code_label(part='test')
+        _, code2, multi_label2 = network_settings2.get_out_code_label(part='database')
+        _, code_test2, _ = network_settings2.get_out_code_label(part='test')
+        dset_loaders = network_settings1.get_dset_loaders()
+
+        i_index_set, j_index_matrix = exp_settings.cal_index_set_matrix_white(code_test, code, multi_label)
+        test_true_label_y = exp_settings.test_true_label_y
+
+        dset_database = dset_loaders['database'].dataset
 
         target_img_mat = get_target_imgs(j_index_matrix, test_true_label_y, i_index_set, dset_database)
+
 
         from myRetrieval import get_img_num_by_class_from_img_batch, get_targeted_from_all_class
         inputs_targets = Variable(torch.Tensor(target_img_mat).cuda(), requires_grad=True)
@@ -265,25 +291,30 @@ def get_target_targetedRetrievalNum(net1, net2, adv_method, step, linf, i_max, j
             j_index_set = j_index_matrix[int(test_true_label_y[i_index_set[i]])].astype(int)
             label_targeted = np.array([multi_label[j_index_set[j]] for j in range(j_max)])
             img_num_target_targeted = get_targeted_from_all_class(img_num_by_class_target[i], label_targeted)
+            #print(i, label_targeted)
             target_targetedNum_mat[i] = img_num_target_targeted
-        print('new blackTargetedNum:', target_targeted_retrieval_num_path)
         np.save(target_targeted_retrieval_num_path, target_targetedNum_mat)
+        print('save blackTargetedNum(target_targetedNum_mat) to: %s'%(target_targeted_retrieval_num_path))
         return target_targetedNum_mat
 
 
 def get_adv_black_retrieval_result(net1, net2, adv_method, step, linf, i_max, j_max, dis_method, job_dataset='', threshold=5, batch_size=8, allowLoad=True):
     # save/load and return  the black box retrieval result for specific adv_imgs
     # the adv_imgs is loaded in this function
-
-    path_blackTargetedNum = 'save_for_load/distanceADVRetrieval/%s/targetedNum_white_%s_black_%s_step%1.1f_linf%d_%s.npy' % (
-        adv_method, net1, net2, step, linf, dis_method)
+    path_blackTargetedNum_folder = 'save_for_load/distanceADVRetrieval/%s'%(adv_method)
+    path_blackTargetedNum = path_blackTargetedNum_folder + '/targetedNum_white_%s_black_%s_step%1.1f_linf%d_%s.npy' % (
+        net1, net2, step, linf, dis_method)
+    if not os.path.exists(path_blackTargetedNum_folder):
+        os.makedirs(path_blackTargetedNum_folder)
     if os.path.exists(path_blackTargetedNum) and allowLoad:
         adv_black_retrieval_result = np.load(path_blackTargetedNum)
-        print('path_blackTargetedNum already exists in:', path_blackTargetedNum)
+        print('load path_blackTargetedNum in:', path_blackTargetedNum)
         return adv_black_retrieval_result
 
+    adv_black_retrieval_result = np.zeros([i_max, j_max])
     npy_name = '/%s_imgs_step%1.1f_linf%d_%dx%d_%s.npy' % (adv_method, step, linf, i_max, j_max, dis_method)
     npy_path = 'save_for_load/' + net1 + npy_name
+    '''
     path_white_test_dis_npy = 'save_for_load/distanceADVRetrieval/test_dis_%s.npy' % (net1)
     path_black_test_dis_npy = 'save_for_load/distanceADVRetrieval/test_dis_%s.npy' % (net2)
     dset_test, dset_database = load_dset_params(job_dataset)
@@ -302,24 +333,57 @@ def get_adv_black_retrieval_result(net1, net2, adv_method, step, linf, i_max, j_
 
     inputs_ori_tensor = torch.stack([dset_test[test_true_id_x[i_index_set[i]]][0] for i in range(i_max)])
     j_index_matrix = get_unique_index(code, multi_label, j_max)
+    '''
+    hash_bit = 48
+    from publicFunctions import NetworkSettings
+    from myExpForPapers_nag import EXPSettings
+    network_settings1 = NetworkSettings(job_dataset, hash_bit, net1, snapshot_iter=iters_list[net1], batch_size=16)
+    network_settings2 = NetworkSettings(job_dataset, hash_bit, net2, snapshot_iter=iters_list[net2], batch_size=16)
+    exp_settings = EXPSettings(net1, net2, dis_method, i_max, j_max, step=step, linf=linf)
+
+    model2 = network_settings2.get_model()
+
+    _, code, multi_label = network_settings1.get_out_code_label(part='database')
+    _, code_test, multi_label_test = network_settings1.get_out_code_label(part='test')
+    _, code2, multi_label2 = network_settings2.get_out_code_label(part='database')
+    _, code_test2, _ = network_settings2.get_out_code_label(part='test')
+    dset_loaders = network_settings1.get_dset_loaders()
+
+    i_index_set, j_index_matrix = exp_settings.cal_index_set_matrix_white(code_test, code, multi_label)
+    test_true_label_y = exp_settings.test_true_label_y
+
+    dset_database = dset_loaders['database'].dataset
 
     print('load adv_imgs from:', npy_path)
     adv_imgs = np.load(npy_path)
 
     inputs_adv = Variable(torch.Tensor(adv_imgs).cuda())
-    better_img_num_result = get_img_num_by_class_from_img_batch(inputs_adv, model2, code2, multi_label2,
+    black_img_num_result = get_img_num_by_class_from_img_batch(inputs_adv, model2, code2, multi_label2,
                                                                      threshold=threshold, batch_size=batch_size)
     label_targeted = np.zeros([i_max, j_max])
 
+    '''
+    for i in range(i_max):
+        #j_index_set = j_index_matrix[int(test_true_label_y[i_index_set[i]])].astype(int)
+        #label_targeted = np.array([multi_label[j_index_set[j]] for j in range(j_max)])
+
+        j_index_set = j_index_matrix[int(test_true_label_y[i_index_set[i]])].astype(int)
+        label_targeted_i = np.array([multi_label[j_index_set[j]] for j in range(j_max)])
+        label_targeted[i] = label_targeted_i
+        img_num_black_targeted = get_targeted_from_all_class(black_img_num_result[i], label_targeted_i)
+        #print(i, label_targeted_i)
+        adv_black_retrieval_result[i] = img_num_black_targeted
+    #adv_black_retrieval_result = get_targeted_from_all_class(black_img_num_result, label_targeted)
+    '''
     for i in range(i_max):
         j_index_set = j_index_matrix[int(test_true_label_y[i_index_set[i]])].astype(int)
         label_targeted_i = np.array([multi_label[j_index_set[j]] for j in range(j_max)])
         label_targeted[i] = label_targeted_i
 
-    adv_black_retrieval_result = get_targeted_from_all_class(better_img_num_result, label_targeted)
-    print('new blackTargetedNum:', path_blackTargetedNum)
-    np.save(path_blackTargetedNum, adv_black_retrieval_result)
+    adv_black_retrieval_result = get_targeted_from_all_class(black_img_num_result, label_targeted)
 
+    np.save(path_blackTargetedNum, adv_black_retrieval_result)
+    print('save blackTargetedNum file to:', path_blackTargetedNum)
     return adv_black_retrieval_result
 
 
@@ -359,34 +423,35 @@ def imgs_to_file(adv_imgs='', pics_root_path=''):
 
 def get_adv_code_diff_to_targeted(net1, adv_method, step, linf, i_max, j_max, dis_method, allowLoad=True):
 
-    path_whiteCodeDiff = 'save_for_load/distanceADVRetrieval/%s/whiteCodeDiff_white_%s_step%1.1f_linf%d_%s.npy' % (
-        adv_method, net1, step, linf, dis_method)
+    path_whiteCodeDiff_folder = 'save_for_load/distanceADVRetrieval/%s/'%(adv_method)
+    path_whiteCodeDiff = path_whiteCodeDiff_folder + '/whiteCodeDiff_white_%s_step%1.1f_linf%d_%s.npy' % (
+        net1, step, linf, dis_method)
+    if not os.path.exists(path_whiteCodeDiff_folder):
+        os.makedirs(path_whiteCodeDiff_folder)
+
     if os.path.exists(path_whiteCodeDiff) and allowLoad:
         adv_code_diff_to_targeted = np.load(path_whiteCodeDiff)
-        print('whiteCodeDiff already exists in:', path_whiteCodeDiff)
+        print('load whiteCodeDiff in:', path_whiteCodeDiff)
         return adv_code_diff_to_targeted
 
-    from publicFunctions import load_net_inputs, load_net_params, load_dset_params
-    from myRetrieval import get_query_code_batch
-    import matplotlib.pyplot as plt
+    hash_bit = 48
+    job_dataset = 'imagenet'
+    from publicFunctions import NetworkSettings
+    from myExpForPapers_nag import EXPSettings
+    network_settings1 = NetworkSettings(job_dataset, hash_bit, net1, snapshot_iter=iters_list[net1], batch_size=16)
+
+    exp_settings = EXPSettings(net1, '', dis_method, i_max, j_max, step=step, linf=linf)
+
     npy_name = '/%s_imgs_step%1.1f_linf%d_%dx%d_%s.npy' % (adv_method, step, linf, i_max, j_max, dis_method)
     npy_path = 'save_for_load/' + net1 + npy_name
-    path_white_test_dis_npy = 'save_for_load/distanceADVRetrieval/test_dis_%s.npy' % (net1)
-    path_black_test_dis_npy = 'save_for_load/distanceADVRetrieval/test_dis_%s.npy' % (net1)
+    model1 = network_settings1.get_model()
+    _, code, multi_label = network_settings1.get_out_code_label(part='database')
+    _, code_test, multi_label_test = network_settings1.get_out_code_label(part='test')
 
-    model1, snapshot_path, query_path, database_path = load_net_params(net1)
-    tmp = np.load(database_path)
-    _, code, multi_label = tmp['arr_0'], tmp['arr_1'], tmp['arr_2']
-    test_dis_white, test_dis_black = get_test_dis(path_white_test_dis_npy, path_black_test_dis_npy)
-    test_true_id_x, test_true_label_y = choose_index_by_dis_method(dis_method, test_dis_white, test_dis_black,
-                                                                   max_dis=18, min_dis=12)
-    id_size = test_true_id_x.shape[0]
-    print('id size:', id_size)
-    i_index_set = np.arange(0, id_size, id_size / (i_max))[:i_max]
-    j_index_matrix = get_unique_index(code, multi_label, j_max)
+    i_index_set, j_index_matrix = exp_settings.cal_index_set_matrix_white(code_test, code, multi_label)
+    test_true_label_y = exp_settings.test_true_label_y
 
     adv_imgs = np.load(npy_path)
-
 
     code_targeted = np.zeros([i_max, j_max, 48])
     adv_code_mat = np.zeros([i_max, j_max, 48])
@@ -395,13 +460,13 @@ def get_adv_code_diff_to_targeted(net1, adv_method, step, linf, i_max, j_max, di
 
     for i in range(i_max):
         j_index_set = j_index_matrix[int(test_true_label_y[i_index_set[i]])].astype(int)
-        label_targeted_i = np.array([code[j_index_set[j]] for j in range(j_max)])
-        code_targeted[i] = label_targeted_i
+        code_targeted_i = np.array([code[j_index_set[j]] for j in range(j_max)])
+        code_targeted[i] = code_targeted_i
 
         img_inputs = Variable(torch.Tensor(adv_imgs[i])).cuda()
         adv_code = get_query_code_batch(img_inputs, model1, batch_size=16)
         adv_code_mat[i] = adv_code
-        adv_code_diff_to_targeted[i] = np.linalg.norm(adv_code - label_targeted_i, ord=0, axis=1)
+        adv_code_diff_to_targeted[i] = np.linalg.norm(adv_code - code_targeted_i, ord=0, axis=1)
 
     np.save(path_whiteCodeDiff, adv_code_diff_to_targeted)
     return adv_code_diff_to_targeted

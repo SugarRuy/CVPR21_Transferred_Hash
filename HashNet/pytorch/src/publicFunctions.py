@@ -345,8 +345,6 @@ class NetworkSettings(BaseNetworkSettings):
         self.test_save_path = test_save_path
         self.database_save_path = database_save_path
 
-
-
     def get_model(self):
         '''
         model = load_model(self.net, self.model_path, self.model_dict_path)
@@ -356,7 +354,6 @@ class NetworkSettings(BaseNetworkSettings):
         model.load_state_dict(torch.load(self.model_dict_path))
         model = model.cuda().eval()
         self.model = model
-
         return model
 
     def get_out_code_label(self, part):

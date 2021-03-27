@@ -29,111 +29,7 @@ from myRetrieval import get_targeted_from_all_class
 from myGetAdvVulnerable import estimate_subspace_size
 from myMapSelection import getRestLayerByNumber
 
-def iFGSMTargetAttack(model, img_t, targetCode, eps=1.0 / 255, iter_max=32):
-    # modified from myGetAdv.iFGSMTargetAttack()
-    # comment print block
-    # add a early stop block
-    if not isinstance(targetCode, torch.cuda.FloatTensor):
-        targetCode = Variable(torch.Tensor(targetCode).cuda())
-    # BE CAUTIOUS when you do the reshape! 
-    X = np.array(img_t.unsqueeze(0))
-    inputs = Variable(torch.Tensor(X).cuda(), requires_grad=True)
-    output = model(inputs)
-    targetCode = targetCode.detach()
 
-    loss = nn.L1Loss()
-    l1loss = loss(output, targetCode.detach())
-    # l1loss.backward(retain_graph=True)
-    l1loss.backward(retain_graph=True)
-    tmp = inputs.grad
-
-    tCodeValue = targetCode.cpu().data.numpy()
-    oCodeValue = torch.sign(output).cpu().data.numpy()
-    # Everything with 'code' in it is the one signed before
-    # xxxCodeValue was signed
-    #
-    # print '...targeted iterative FGSM begin....'
-    # print 'initial distance', np.sum(np.abs(tCodeValue-oCodeValue))/ 2
-    i = 0
-    while i < iter_max:
-        # print 'epoch ', i, ' loss: ', l1loss.cpu().data.numpy()
-        print('Hamming distance  : ', np.sum(np.abs(tCodeValue - oCodeValue)) / 2)
-        # early stop
-        if early_stop:
-            if np.sum(np.abs(tCodeValue - oCodeValue)) / 2 <= 0:
-                print('...Final Hamming distance : ', np.sum(np.abs(tCodeValue - oCodeValue)) / 2)
-                return inputs
-
-        adv = inputs - eps * torch.sign(inputs.grad)
-        tmp = adv.cpu().data.numpy()
-        tmp[tmp < 0] = 0
-        tmp[tmp > 1] = 1
-        inputs = Variable(torch.Tensor(tmp).cuda(), requires_grad=True)
-
-        output_adv = model(inputs)
-
-        l1loss = loss(output_adv, targetCode.detach())
-        l1loss.backward(retain_graph=True)
-
-        oCodeValue = torch.sign(output_adv).cpu().data.numpy()
-
-        i = i + 1
-
-    print('...Final Hamming distance : ', np.sum(np.abs(tCodeValue - oCodeValue)) / 2)
-    return inputs
-
-
-def plot_dis_retrieval_result(distance_array, retrieval_result_array, plot_method='scatter'):
-    if plot_method == 'scatter':
-        plt.scatter(distance_array, retrieval_result_array, marker='x', alpha=0.5)
-        plt.axhline(y=retrieval_result_array.mean())
-        plt.axvline(distance_array.mean())
-
-        plt.xlabel('distance')
-        plt.ylabel('retrieval result')
-
-    if plot_method == 'hist':
-        max_hamming_dis = int(distance_array.max())
-        hist_retrieval_result_mean = np.zeros([max_hamming_dis])
-        hist_retrieval_result_count = np.zeros([max_hamming_dis])
-        for i in range(max_hamming_dis):
-            hist_retrieval_result_mean[i] = retrieval_result_array[distance_array == i].mean()
-            hist_retrieval_result_count[i] = retrieval_result_array[distance_array == i].shape[0]
-        hist_retrieval_result_mean = np.nan_to_num(hist_retrieval_result_mean)
-        plt.title(plot_method)
-        plt.subplot(1, 2, 1)
-        plt.ylabel('Mean Retrieval Result')
-        plt.plot(hist_retrieval_result_mean)
-        plt.subplot(1, 2, 2)
-        plt.ylabel('Count of Hamming Distance')
-        plt.plot(hist_retrieval_result_count)
-        # plt.hist(hist_retrieval_result, bins=max_hamming_dis)
-    return
-
-
-def print_weighted_info_by_id(id_mat, result_mat, new_prob_mat, method_name=""):
-    result_mat_prob = (result_mat[id_mat] > 0).astype(float) * new_prob_mat[id_mat]
-    print("Num with %s: %f out of %d, %f" % (method_name,
-                                             result_mat_prob.sum(), result_mat_prob.size,
-                                             result_mat_prob.sum() / result_mat_prob.size))
-
-def plot_by_source_image(distance_mat, result_mat):
-    distance_mat = distance_mat.reshape([-1])
-    result_mat = result_mat.reshape([-1])
-    if not i_max == 64:
-        return
-    for i in range(i_max):
-        distance_array = distance_mat[i*j_max:(i+1)*j_max]
-        result_array = result_mat[i*j_max:(i+1)*j_max]
-        plt.subplot(8, 8, i+1)
-        plt.scatter(distance_array, result_array, marker='o', alpha=0.05)
-    return
-
-
-
-def is_close_enough_for_hopping(source_id, target_id, hopping_method='class'):
-    if hopping_method == 'class':
-        return
 
 def func_enable_retrieval():
     # this is a function segment
@@ -466,17 +362,18 @@ if __name__ == "__main__":
     early_stop_name = 'early' if early_stop else 'noearly'
 
     exp_settings = EXPSettings(net1, net2, dis_method, i_max, j_max, step=step, linf=linf)
-    i_index_set, j_index_matrix = exp_settings.cal_index_set_matrix(multi_label_test, code_test2, code2, multi_label2,
-                                                                    code_test, code, multi_label)
+    #i_index_set, j_index_matrix = exp_settings.cal_index_set_matrix(multi_label_test, code_test2, code2, multi_label2,
+    #                                                                code_test, code, multi_label)
+    i_index_set, j_index_matrix = exp_settings.cal_index_set_matrix_white(code_test, code, multi_label)
     inputs_ori_tensor = exp_settings.cal_inputs_ori_tensor(dset_test=dset_loaders['test'].dataset)
     i_index_set = i_index_set.astype(int)
 
     test_true_id_x = exp_settings.test_true_id_x
     test_true_label_y = exp_settings.test_true_label_y
 
-    ad_imagelist = os.listdir(ad_datapath)
-    ad_imagelist = ad_imagelist
     noiid = False
+    if noiid:
+        ad_imagelist = os.listdir(ad_datapath)
 
     # some enable flags for function blocks
     bSaveWhiteL2 = False
@@ -499,9 +396,6 @@ if __name__ == "__main__":
     path_whiteHamming = 'save_for_load/distanceADVRetrieval/hamming_%s.npy' % ( dis_method)
     path_blackTargetedNum = 'save_for_load/distanceADVRetrieval/%s/targetedNum_white_%s_black_%s_%s.npy' % (adv_method, net1, net2, dis_method)
 
-
-
-
     path_advGeoDist = 'save_for_load/distanceADVRetrieval/%s_advGeoDist_%s.npy'%(adv_method, dis_method)
 
     print('Overall size:%d' % (test_true_id_x.shape[0]))
@@ -520,8 +414,6 @@ if __name__ == "__main__":
         bLoad = True
     else:
         bLoad = False
-
-    u, indices = np.unique(multi_label, return_index=True)
 
     if not bLoad:
         adv_imgs = get_adv_imgs()
