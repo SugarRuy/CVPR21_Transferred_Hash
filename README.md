@@ -2,7 +2,7 @@
 A PyTorch Implementation of "You See What I Want You to See: Exploring Targeted Black-Box Transferability
 Attack for Hash-based Image Retrieval Systems" accepted by CVPR 2021.
 
-## Prepare Enviroments
+## Enviroments
 
 You will need a CUDA device to run our code.
 
